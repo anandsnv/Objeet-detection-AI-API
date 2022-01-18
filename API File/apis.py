@@ -1,3 +1,8 @@
+import json
+
+import cv2
+import npm as npm
+import numpy
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
@@ -5,17 +10,15 @@ import os
 from datetime import datetime
 from sqlalchemy import ForeignKey
 from maskdetection.face import face_match
+from maskdetection.face import train
 from maskdetection.yolov5.main import out
-import maskdetection.yolov5.detect
 from sqlalchemy.orm import relationship
 import maskdetection.yolov5
 
-#import maskdetection.yolov5.face
+# import maskdetection.yolov5.face
 import maskdetection
 import maskdetection.yolov5
-import  maskdetection.face
-
-
+import maskdetection.face
 
 # init app
 from sqlalchemy.sql.functions import current_timestamp
@@ -120,24 +123,30 @@ def valid():
 # registration
 @app.route('/register', methods=['POST'])
 def insert():
-    mob = request.json['mob']
-    eid = request.json['eid']
-    name = request.json['name']
-    email = request.json['email']
-    images = request.files.to_dict(flat=False)
-    ##files is a list containing two
-    if images is None:
-        for i, file in enumerate(images):
-            file.save(f'image-{i}.jpg')
-
-    new_user = User(mob, eid, name, email)
-
-    db.session.add(new_user)
-    db.session.commit()
-
-    return jsonify(registrationSuccess=True)
-
-
+    if request.method == 'POST':
+        data = request.form.get('data')
+        json_data=json.loads(data)
+        mob=json_data['mob']
+        eid = json_data['eid']
+        name = json_data['name']
+        email = json_data['email']
+        image_request = request.files.to_dict(flat=False)
+        image_file = image_request.get('images')
+        print(image_file)
+        filedest = os.path.join(basedir, 'Images/')
+        try:
+            new_dir = os.path.join(filedest, mob)
+            os.mkdir(new_dir)
+            image_file[0].save(os.path.join(new_dir, "Face.jpg"))
+            image_file[1].save(os.path.join(new_dir, "Mask.jpg"))
+            train(new_dir)
+            new_user = User(mob, eid, name, email)
+            db.session.add(new_user)
+            db.session.commit()
+            return jsonify(registrationsucess=True)
+        except:
+            print("folder for this ID already exists")
+            return jsonify(registrationsucess=False)
 # logging
 @app.route('/logging', methods=['POST'])
 def log():
@@ -147,7 +156,6 @@ def log():
     access = request.json['access']
     date = request.json["date"]
     log_time = datetime.strptime(date, '%d/%m/%Y %H:%M:%S')
-
 
     new_log = Log(log_time, mob, mask, temp, access)
 
@@ -161,13 +169,14 @@ def log():
 # face iding
 @app.route('/face', methods=["POST"])
 def getIdentity():
-
-  m=out()
-  face_match("maskdetection/3.jpg", "maskdetection/data.pt")
-  #mask = request.json["mask"]
-  return jsonify(mask = m)
-
-
+    imagefile = request.files.get('')
+    filedest = os.path.join(basedir, 'temp/tempimg.jpg')
+    imagefile.save(filedest)
+    facei = face_match("temp/tempimg.jpg", "maskdetection/data.pt")
+    # mask = request.json["mask"]
+    print(facei[0])
+    user = db.session.query.get(facei[0])
+    return user_schema.jsonify(user)
 
 # run server
 if __name__ == '__main__':

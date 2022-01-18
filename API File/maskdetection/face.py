@@ -9,26 +9,27 @@ import flask
 mtcnn = MTCNN(image_size=240, margin=0, min_face_size=20) # initializing mtcnn for face detection
 resnet = InceptionResnetV1(pretrained='vggface2').eval() # initializing resnet for face img to embeding conversion
 
-dataset=datasets.ImageFolder('D:\API File\maskdetection\photos') # photos folder path
-idx_to_class = {i:c for c,i in dataset.class_to_idx.items()} # accessing  folder names(number)
+def train(test_path):
+    dataset=datasets.ImageFolder('test_path') # photos folder path
+    idx_to_class = {i:c for c,i in dataset.class_to_idx.items()} # accessing  folder names(number)
 
-def collate_fn(x):
-    return x[0]
+    def collate_fn(x):
+        return x[0]
 
-loader = DataLoader(dataset, collate_fn=collate_fn)
+    loader = DataLoader(dataset, collate_fn=collate_fn)
 
-face_list = [] # list of cropped faces from photos folder
-name_list = [] # list of names corrospoing to cropped photos
-embedding_list = [] # list of embeding matrix after conversion from cropped faces to embedding matrix using resnet
+    face_list = [] # list of cropped faces from photos folder
+    name_list = [] # list of names corrospoing to cropped photos
+    embedding_list = [] # list of embeding matrix after conversion from cropped faces to embedding matrix using resnet
 
-for img, idx in loader:
-    face, prob = mtcnn(img, return_prob=True) 
-    if face is not None and prob>0.90: # if face detected and porbability > 90%
-        emb = resnet(face.unsqueeze(0)) # passing cropped face into resnet model to get embedding matrix
-        embedding_list.append(emb.detach()) # resulten embedding matrix is stored in a list
-        name_list.append(idx_to_class[idx]) # names are stored in a list
-        data = [embedding_list, name_list]
-torch.save(data, 'data.pt') # saving data.pt file
+    for img, idx in loader:
+        face, prob = mtcnn(img, return_prob=True)
+        if face is not None and prob>0.90: # if face detected and porbability > 90%
+            emb = resnet(face.unsqueeze(0)) # passing cropped face into resnet model to get embedding matrix
+            embedding_list.append(emb.detach()) # resulten embedding matrix is stored in a list
+            name_list.append(idx_to_class[idx]) # names are stored in a list
+            data = [embedding_list, name_list]
+    torch.save(data, 'data.pt') # saving data.pt file
 
 def face_match(img_path, data_path): # img_path= location of photo, data_path= location of data.pt 
     # getting embedding matrix of the given img
@@ -46,8 +47,7 @@ def face_match(img_path, data_path): # img_path= location of photo, data_path= l
         dist_list.append(dist)
         
     idx_min = dist_list.index(min(dist_list))
-    print("idx_min")
-    print(name_list[idx_min])
+
     return (name_list[idx_min], min(dist_list))
 
 
